@@ -138,9 +138,12 @@ def connected_addresses() -> set[str] | None:
             capture_output=True, timeout=15, creationflags=0x08000000)
     except (OSError, subprocess.SubprocessError):
         return None
+    if proc.returncode != 0:
+        return None
     text = (proc.stdout or b"").decode("utf-8-sig", "replace").strip()
     if not text:
-        return None
+        # 脚本成功但没输出：当作“一台都没连”，绝不能退化成“全部已配对”
+        return set()
     try:
         data = json.loads(text)
     except ValueError:
@@ -294,10 +297,12 @@ def read_devices() -> list[BtDevice]:
     """枚举当前已连接的 BLE 外设并读电量（顺序读，GATT 调用很快）。"""
     paths = battery_service_paths()
     connected = connected_addresses()
-    if connected is not None:
-        # 只保留真正连着的设备，避免已配对但离线的设备显示旧缓存电量
-        paths = {addr: path for addr, path in paths.items()
-                 if addr in connected}
+    if connected is None:
+        # 查不到连接状态时宁可不显示，也不要把“已配对但离线”的设备当成在线
+        print("btwin: 无法查询蓝牙连接状态（PowerShell/WinRT）", file=sys.stderr)
+        return []
+    # 只保留真正连着的设备，避免已配对但离线的设备显示旧缓存电量
+    paths = {addr: path for addr, path in paths.items() if addr in connected}
     devices: list[BtDevice] = []
     for address, path in paths.items():
         level = _read_battery_path(path)

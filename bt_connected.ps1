@@ -27,4 +27,5 @@ foreach ($info in $infos) {
     $tail = $parts[$parts.Count - 1].Replace(':', '').ToUpper()
     if ($tail.Length -ge 12) { $addresses += $tail.Substring($tail.Length - 12) }
 }
-$addresses | ConvertTo-Json -Compress
+# 注意：空数组走管道会什么都不输出，必须用 -InputObject 才能得到 []
+ConvertTo-Json -InputObject @($addresses) -Compress
